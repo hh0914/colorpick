@@ -1,0 +1,10 @@
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# 测试与截图产物
+.playwright-mcp/
+*.log

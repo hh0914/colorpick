@@ -1,0 +1,410 @@
+/* ==========================================================================
+   ColorPick 拾色助手 —— 内容脚本样式（悬浮按钮 + 操作面板 + 轻提示）
+   说明：
+   1. 所有选择器都以 #cpk-root 作为作用域前缀，避免污染宿主页面的样式；
+   2. 通过 all: initial 重置根节点，隔离页面可能存在的全局样式；
+   3. 尺寸统一使用 px，避免受页面 html { font-size } 影响。
+   ========================================================================== */
+
+#cpk-root {
+  all: initial;
+  position: fixed !important;
+  right: 24px;
+  bottom: 24px;
+  z-index: 2147483647 !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1b1830;
+  text-align: left;
+  letter-spacing: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  text-size-adjust: 100%;
+}
+
+#cpk-root *,
+#cpk-root *::before,
+#cpk-root *::after {
+  box-sizing: border-box;
+}
+
+/* 重置按钮，规避页面 button 全局样式 */
+#cpk-root button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  width: auto;
+  height: auto;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: center;
+  text-transform: none;
+  letter-spacing: inherit;
+  box-shadow: none;
+  overflow: visible;
+  touch-action: manipulation;
+}
+
+#cpk-root button:focus-visible {
+  outline: 2px solid #7c5cff;
+  outline-offset: 2px;
+}
+
+#cpk-root svg {
+  display: block;
+}
+
+/* ------------------------------- 悬浮按钮 -------------------------------- */
+
+#cpk-root .cpk-fab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 999px;
+  background-color: #7c5cff;
+  background-image: linear-gradient(135deg, #7c5cff 0%, #a25cff 46%, #ff6bcb 100%);
+  color: #ffffff !important;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  box-shadow: 0 10px 24px rgba(90, 55, 214, 0.34),
+    0 2px 6px rgba(20, 10, 60, 0.16);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+#cpk-root .cpk-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(90, 55, 214, 0.42),
+    0 4px 10px rgba(20, 10, 60, 0.18);
+  filter: saturate(1.06);
+}
+
+#cpk-root .cpk-fab:active {
+  transform: translateY(0);
+  box-shadow: 0 6px 16px rgba(90, 55, 214, 0.3);
+}
+
+#cpk-root .cpk-fab.is-busy {
+  cursor: progress;
+}
+
+#cpk-root .cpk-fab.is-busy .cpk-fab__icon {
+  animation: cpk-spin 0.9s linear infinite;
+}
+
+#cpk-root .cpk-fab__icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+/* -------------------------------- 面板 ---------------------------------- */
+
+#cpk-root .cpk-panel {
+  width: 308px;
+  max-width: calc(100vw - 48px);
+  background: #ffffff;
+  border: 1px solid rgba(27, 24, 48, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 20px 44px rgba(30, 18, 80, 0.18),
+    0 2px 8px rgba(20, 10, 50, 0.06);
+  overflow: hidden;
+  transform-origin: bottom right;
+  animation: cpk-pop 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+#cpk-root .cpk-panel[hidden] {
+  display: none;
+}
+
+#cpk-root .cpk-panel__bar {
+  height: 3px;
+  background-image: linear-gradient(90deg, #7c5cff, #c05cff 50%, #ff6bcb);
+}
+
+#cpk-root .cpk-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 11px 12px 8px 14px;
+}
+
+#cpk-root .cpk-panel__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1b1830;
+}
+
+#cpk-root .cpk-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-image: linear-gradient(135deg, #7c5cff, #ff6bcb);
+  flex: none;
+}
+
+#cpk-root .cpk-close {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: #8a86a0;
+  font-size: 13px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+#cpk-root .cpk-close:hover {
+  background: #f3f1fa;
+  color: #1b1830;
+}
+
+#cpk-root .cpk-panel__body {
+  padding: 0 14px 12px;
+}
+
+/* 状态文案 */
+#cpk-root .cpk-status {
+  margin: 0 0 9px;
+  font-size: 12px;
+  color: #6e6a85;
+  min-height: 18px;
+}
+
+#cpk-root .cpk-status strong {
+  color: #4b3bb3;
+  font-weight: 700;
+}
+
+/* 扫描进度条 */
+#cpk-root .cpk-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: #f0edf9;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+#cpk-root .cpk-progress[hidden] {
+  display: none;
+}
+
+#cpk-root .cpk-progress span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background-image: linear-gradient(90deg, #7c5cff, #ff6bcb);
+  transition: width 0.15s linear;
+}
+
+/* 色块预览条 */
+#cpk-root .cpk-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #faf9fe;
+  border: 1px solid #efecf8;
+  border-radius: 11px;
+}
+
+#cpk-root .cpk-strip[hidden] {
+  display: none;
+}
+
+#cpk-root .cpk-strip__dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  border: 1px solid rgba(20, 10, 60, 0.1);
+  background-clip: padding-box;
+  transition: transform 0.15s ease;
+}
+
+#cpk-root .cpk-strip__dot:hover {
+  transform: scale(1.18);
+}
+
+/* 主操作按钮 */
+#cpk-root .cpk-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#cpk-root .cpk-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: #f4f1ff;
+  color: #4b3bb3;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid transparent;
+  transition: background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+}
+
+#cpk-root .cpk-btn:hover {
+  background: #ebe5ff;
+}
+
+#cpk-root .cpk-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#cpk-root .cpk-btn--primary {
+  background-image: linear-gradient(135deg, #7c5cff, #ff6bcb);
+  background-color: #7c5cff;
+  color: #ffffff;
+  box-shadow: 0 6px 14px rgba(124, 92, 255, 0.28);
+}
+
+#cpk-root .cpk-btn--primary:hover {
+  filter: brightness(1.04);
+  box-shadow: 0 8px 18px rgba(124, 92, 255, 0.34);
+}
+
+#cpk-root .cpk-btn__icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+/* 次级文字按钮 */
+#cpk-root .cpk-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+#cpk-root .cpk-links button {
+  font-size: 11.5px;
+  color: #8a86a0;
+  padding: 3px 2px;
+  border-radius: 6px;
+  transition: color 0.2s ease;
+}
+
+#cpk-root .cpk-links button:hover {
+  color: #4b3bb3;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* 轻提示 */
+#cpk-root .cpk-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 84px;
+  max-width: 300px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  background: rgba(24, 20, 44, 0.92);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 10px 24px rgba(20, 10, 50, 0.28);
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 2147483647;
+}
+
+#cpk-root .cpk-toast.is-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#cpk-root .cpk-toast.is-warn {
+  background: rgba(146, 64, 14, 0.94);
+}
+
+/* ------------------------------- 动画 ----------------------------------- */
+
+@keyframes cpk-pop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes cpk-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ----------------------------- 移动端适配 -------------------------------- */
+
+@media (max-width: 520px) {
+  #cpk-root {
+    right: 14px;
+    bottom: 14px;
+    gap: 9px;
+  }
+
+  #cpk-root .cpk-fab {
+    padding: 10px 15px;
+    font-size: 13px;
+  }
+
+  #cpk-root .cpk-panel {
+    width: calc(100vw - 28px);
+    max-width: 340px;
+  }
+
+  #cpk-root .cpk-toast {
+    right: 14px;
+    bottom: 76px;
+    max-width: calc(100vw - 28px);
+  }
+}
+
+/* 尊重系统「减少动态效果」设置 */
+@media (prefers-reduced-motion: reduce) {
+  #cpk-root *,
+  #cpk-root *::before,
+  #cpk-root *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

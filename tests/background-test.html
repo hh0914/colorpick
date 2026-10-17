@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>background.js 集成测试</title>
+<style>body{font-family:system-ui;padding:24px}pre{background:#111;color:#9ef;padding:16px;border-radius:8px;white-space:pre-wrap}</style>
+</head>
+<body>
+<h1>background.js 集成测试</h1>
+<p>本页面模拟 chrome 扩展 API，加载真实的 background.js，用于验证消息处理与文件生成。</p>
+<pre id="log">running…</pre>
+
+<script>
+// ---------------- chrome API 模拟 ----------------
+const mem = { session: {}, local: {}, sync: {} };
+const listeners = { message: [], downloadChanged: [], tabRemoved: [], installed: [], actionClicked: [] };
+const downloads = [];
+const tabsCreated = [];
+const broadcasts = [];
+let downloadSeq = 100;
+
+function makeArea(name) {
+  return {
+    get(keys, cb) {
+      const src = mem[name];
+      let out = {};
+      if (typeof keys === 'string') { if (keys in src) out[keys] = src[keys]; }
+      else if (Array.isArray(keys)) keys.forEach((k) => { if (k in src) out[k] = src[k]; });
+      else if (keys && typeof keys === 'object') Object.keys(keys).forEach((k) => { out[k] = k in src ? src[k] : keys[k]; });
+      else out = { ...src };
+      setTimeout(() => cb(out), 0);
+    },
+    set(items, cb) {
+      const changes = {};
+      Object.keys(items).forEach((k) => { changes[k] = { oldValue: mem[name][k], newValue: items[k] }; mem[name][k] = items[k]; });
+      setTimeout(() => { if (cb) cb(); }, 0);
+    },
+    remove(keys, cb) { const arr = [].concat(keys); arr.forEach((k) => delete mem[name][k]); if (cb) setTimeout(cb, 0); }
+  };
+}
+
+window.chrome = {
+  storage: {
+    session: makeArea('session'),
+    local: makeArea('local'),
+    sync: makeArea('sync'),
+    onChanged: { addListener() {} }
+  },
+  runtime: {
+    lastError: undefined,
+    getURL: (p) => 'chrome-extension://test/' + p,
+    sendMessage(msg, cb) { broadcasts.push(msg); if (cb) cb(); },
+    onMessage: { addListener(fn) { listeners.message.push(fn); } },
+    onInstalled: { addListener(fn) { listeners.installed.push(fn); } }
+  },
+  tabs: {
+    create({ url }) { const tab = { id: 900 + tabsCreated.length, url, windowId: 1 }; tabsCreated.push(tab); return Promise.resolve(tab); },
+    get(id) { const t = tabsCreated.find((x) => x.id === id); return t ? Promise.resolve(t) : Promise.reject(new Error('No tab with id ' + id)); },
+    update() { return Promise.resolve({}); },
+    reload() { return Promise.resolve(); },
+    sendMessage() { return Promise.resolve({ ok: true }); },
+    onRemoved: { addListener(fn) { listeners.tabRemoved.push(fn); } }
+  },
+  windows: { update() { return Promise.resolve({}); } },
+  downloads: {
+    download(options, cb) {
+      downloads.push(options);
+      const id = downloadSeq++;
+      setTimeout(() => cb(id), 0);
+      return id;
+    },
+    onChanged: { addListener(fn) { listeners.downloadChanged.push(fn); } }
+  },
+  scripting: { insertCSS() { return Promise.resolve(); }, executeScript() { return Promise.resolve(); } },
+  action: { onClicked: { addListener(fn) { listeners.actionClicked.push(fn); } } }
+};
+
+// ---------------- 加载被测脚本 ----------------
+window.__testReady = new Promise((resolve) => { window.__resolveReady = resolve; });
+</script>
+<script src="../background.js"></script>
+<script>
+window.__resolveReady();
+
+// 向 background 发送消息并等待异步 sendResponse
+function send(msg) {
+  return new Promise((resolve) => {
+    const fn = listeners.message[0];
+    const ret = fn(msg, { id: 'test' }, resolve);
+    if (ret !== true) setTimeout(() => resolve(undefined), 200);
+  });
+}
+
+function decodeDataUrl(url) {
+  const base64 = url.split(',')[1];
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+const sampleColors = [
+  { key: '#FFFFFF|1', hex: '#FFFFFF', rgb: 'rgb(255, 255, 255)', r: 255, g: 255, b: 255, a: 1, count: 412, text: 0, bg: 300, border: 112, manual: false },
+  { key: '#7C5CFF|1', hex: '#7C5CFF', rgb: 'rgb(124, 92, 255)', r: 124, g: 92, b: 255, a: 1, count: 96, text: 18, bg: 22, border: 56, manual: false },
+  { key: '#FF6BCB|0.2', hex: '#FF6BCB', rgb: 'rgba(255, 107, 203, 0.2)', r: 255, g: 107, b: 203, a: 0.2, count: 3, text: 0, bg: 3, border: 0, manual: true }
+];
+const meta = { title: '测试页面 */ 注释闭合\n换行', url: 'https://example.com/a?b=1', updatedAt: Date.now() };
+
+window.__runTests = async () => {
+  const results = {};
+
+  // 1. 扫描结果入库 + 打开色板页
+  results.scan = await send({ type: 'SCAN_RESULT', colors: sampleColors, meta });
+  results.stored = mem.session.cpk_colors && mem.session.cpk_colors.colors.length;
+
+  // 2. 手动吸管新增（已存在则计数+1，新颜色插入）
+  results.addExisting = await send({ type: 'ADD_COLOR', color: sampleColors[1], meta });
+  results.addNew = await send({ type: 'ADD_COLOR', color: { key: '#33D6A6|1', hex: '#33D6A6', rgb: 'rgb(51, 214, 166)', r: 51, g: 214, b: 166, a: 1, count: 1, text: 0, bg: 0, border: 0, manual: true }, meta });
+  results.afterAdd = mem.session.cpk_colors.colors.map((c) => ({ hex: c.hex, count: c.count, manual: c.manual }));
+
+  // 3. 四种格式下载
+  const files = {};
+  for (const format of ['css', 'scss', 'json', 'txt']) {
+    const res = await send({ type: 'DOWNLOAD', format, colors: sampleColors, meta });
+    const last = downloads[downloads.length - 1];
+    files[format] = { res, filename: res.filename, options: { filename: last.filename, mime: last.url.slice(5, last.url.indexOf(';')) }, content: decodeDataUrl(last.url) };
+  }
+  results.files = files;
+  results.invalidFormat = await send({ type: 'DOWNLOAD', format: 'xml', colors: sampleColors, meta });
+  results.emptyDownload = await send({ type: 'DOWNLOAD', format: 'css', colors: [], meta });
+
+  // 4. 下载完成广播
+  const id = results.files.css.res.downloadId;
+  listeners.downloadChanged[0]({ id, state: { current: 'complete' } });
+  listeners.downloadChanged[0]({ id: 999, state: { current: 'complete' } });
+  results.broadcasts = broadcasts.filter((b) => b.type === 'DOWNLOAD_STATUS').map((b) => b.status + ':' + b.filename);
+
+  // 5. 色板页复用
+  results.reuse = await send({ type: 'OPEN_GALLERY' });
+  results.tabsCreated = tabsCreated.length;
+
+  // 6. 未知消息不响应
+  results.unknown = await send({ type: 'UNKNOWN_TYPE' });
+
+  return results;
+};
+</script>
+</body>
+</html>
